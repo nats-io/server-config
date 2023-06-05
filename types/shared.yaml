@@ -9,14 +9,31 @@ types:
       - net
     reloadable: false
     examples:
-      - value: '127.0.0.1'
-      - value: 'localhost'
-      - value: '[::]'
+      - label: Hostname
+        value: "localhost"
+      - label: IPv4
+        value: "127.0.0.1"
+      - label: IPv6
+        value: "[::]"
 
   listen:
     type: string
     description: |-
       This is an alternate to setting the `host` and `port` separately.
     examples:
-      - value: 'localhost:4222'
-      - value: '[::]:4222'
+      - label: Hostname
+        value: "localhost:4222"
+      - label: IPv4
+        value: "0.0.0.0:4222"
+      - label: IPv6
+        value: "[::]:4222"
+
+  enable-disable:
+    type: string
+    description: |-
+      Indicates the capability is enabled or disabled.
+    choices:
+      - enabled
+      - enable
+      - disabled
+      - disable
