@@ -22,7 +22,6 @@ func generateTemplate(w io.Writer, p *Property, dir, base string, hier []*hierPa
 	o("# %s\n\n", p.Name)
 
 	if breadcrumbs {
-
 		for _, tok := range hier {
 			var p string
 			if relative {
@@ -67,12 +66,28 @@ func generateTemplate(w io.Writer, p *Property, dir, base string, hier []*hierPa
 		o("\n\n")
 	}
 
+	o("*Reloadable*: `%v`\n\n", p.Reloadable)
+
+	if p.URL != "" {
+		o("*URL*: `%s`\n\n", p.URL)
+	}
+
+	o("*Types*\n\n")
+	for _, t := range p.Types {
+		o("- `%s`\n", t)
+	}
+	o("\n\n")
+
 	if len(p.Sections) > 0 {
 		o("## Properties\n\n")
 
 		for _, s := range p.Sections {
 			if s.Name != "" {
 				o("### %s\n\n", s.Name)
+			}
+
+			if s.Description != "" {
+				o("%s\n\n", s.Description)
 			}
 
 			for _, x := range s.Properties {
@@ -120,8 +135,9 @@ func GenerateMarkdown(config *Config, dir string, base string, relative bool, in
 	buf := bytes.NewBuffer(nil)
 
 	prop := Property{
-		Name:     "Server Config",
-		Sections: config.Sections,
+		Name:        config.Name,
+		Description: config.Description,
+		Sections:    config.Sections,
 	}
 
 	if base == "/" {
