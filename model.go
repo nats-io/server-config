@@ -123,8 +123,10 @@ func Parse(path string, typePaths []string) (*Config, error) {
 	}
 
 	c := Config{
-		Sections: sections,
-		Types:    types,
+		Name:        yc.Name,
+		Description: yc.Description,
+		Sections:    sections,
+		Types:       types,
 	}
 
 	return &c, nil
@@ -135,7 +137,9 @@ type yamlFile struct {
 }
 
 type yamlConfig struct {
-	Sections []*yamlSection
+	Name        string
+	Description string
+	Sections    []*yamlSection
 }
 
 type yamlProperty struct {

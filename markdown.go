@@ -25,13 +25,13 @@ func generateTemplate(w io.Writer, p *Property, dir, base string, hier []*hierPa
 		for _, tok := range hier {
 			var p string
 			if relative {
-				rp, err := filepath.Rel(dir, tok.Path)
+				rp, err := filepath.Rel(base, tok.Path)
 				if err != nil {
 					return err
 				}
 				p = rp
 			} else {
-				p = filepath.Join(base, tok.Path)
+				p = tok.Path
 			}
 
 			if indexName != "" {
@@ -95,7 +95,7 @@ func generateTemplate(w io.Writer, p *Property, dir, base string, hier []*hierPa
 				if relative {
 					path = x.Name
 				} else {
-					path = filepath.Join(base, dir, x.Name)
+					path = filepath.Join(base, x.Name)
 				}
 				if indexName != "" {
 					path = filepath.Join(path, indexName)
@@ -169,13 +169,14 @@ func generatePropMarkdown(prop *Property, buf *bytes.Buffer, dir, base string, h
 
 	var nhier []*hierPath
 	nhier = append(nhier, hier...)
-	nhier = append(nhier, &hierPath{Name: prop.Name, Path: dir})
+	nhier = append(nhier, &hierPath{Name: prop.Name, Path: base})
 
 	for _, s := range prop.Sections {
 		for _, p := range s.Properties {
 			// Property gets its own directory.
 			ndir := filepath.Join(dir, p.Name)
-			if err := generatePropMarkdown(p, buf, ndir, base, nhier, relative, indexName, breadcrumbs); err != nil {
+			nbase := filepath.Join(base, p.Name)
+			if err := generatePropMarkdown(p, buf, ndir, nbase, nhier, relative, indexName, breadcrumbs); err != nil {
 				return err
 			}
 		}
