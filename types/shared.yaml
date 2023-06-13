@@ -37,3 +37,10 @@ types:
       - enable
       - disabled
       - disable
+
+  storage:
+    types:
+      - integer
+      - string
+    description: |-
+      Storage size in bytes or string in with a metric unit K, M, G, or T.

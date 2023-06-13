@@ -1,5 +1,32 @@
 ---
 types:
+  jetstream-limits:
+    type: object
+    properties:
+      max_ack_pending:
+        type: integer
+        description: |-
+          Defines the maximum number of in-flight messages allowed to be
+          configured on consumers.
+
+      max_ha_assets:
+        type: integer
+        description: |-
+          The maximum number of JetStream assets that can exist at any given
+          time having more than one replica.
+
+      max_request_batch:
+        type: integer
+        description: |-
+          The maximum request batch size allowed to be configured on pull
+          consumers.
+
+      duplicate_window:
+        type: duration
+        description: |-
+          The maximum duplication window period allowed to be configured on
+          a stream.
+
   jetstream:
     type: object
     properties:
@@ -11,22 +38,82 @@ types:
 
       store_dir:
         type: string
+        aliases:
+          - store
+          - storedir
         default: /tmp/nats/jetstream
         description: |-
-          Directory to use for JetStream storage.
+          Directory to use for file-based storage.
 
       max_memory_store:
-        type: string
+        type: storage
         aliases:
-          - max_memory
+          - max_mem_store
+          - max_mem
         description: |-
           Maximum size of the *memory* storage.
           Defaults to 75% of available memory.
 
       max_file_store:
-        type: string
+        type: storage
         aliases:
           - max_file
         description: |-
           Maximum size of the *file* storage.
           Defaults to up to 1TB if available.
+
+      domain:
+        type: string
+        description: |-
+          The JetStream domain the server is part of.
+
+      enable:
+        type: boolean
+        aliases:
+          - enabled
+        description: |-
+          If true, enables the JetStream subsystem.
+
+      encryption_key:
+        type: string
+        aliases:
+          - key
+          - ek
+        description: |-
+          If defined, enables JetStream filestore encryption using the
+          value as the encryption key. A key length of at least 32 bytes
+          is recommended. Note, this key is HMAC-256 hashed on startup which
+          reduces the byte length to 64.
+
+      cipher:
+        type: string
+        choices:
+          - chacha
+          - chachapoly
+          - aes
+        description: |-
+          Defines the encryption algorithm to use if an encryption key is defined.
+
+      extension_hint:
+        type: string
+
+      limits:
+        type: jetstream-limits
+        description: |-
+          Default cross-account JetStream limits.
+
+      unique_tag:
+        type: string
+        description: |-
+          Defines a tag prefix as a constraint for placement of assets across
+          a JetStream domain. For example, if the value is `az:` then replicas
+          of an assets will be required to be placed on servers having
+          different `az:` tags.
+
+      max_outstanding_catchup:
+        type: storage
+        default: 32M
+        description: |-
+          Max in-flight bytes for stream catch-up. This was introduced to
+          control how much bandwidth should be dedicated during catch-up to
+          guard against saturating and degrading performance of the network.

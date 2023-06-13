@@ -3,6 +3,8 @@ name: Server Config
 description: |-
   While the NATS server has many flags that allow for simple testing of features, the NATS server products provide a flexible configuration format that combines the best of traditional formats and newer styles such as JSON and YAML.
 
+  ## Syntax
+
   The NATS configuration file supports the following syntax:
 
   * Lines can be commented with `#` and `//`
@@ -17,11 +19,11 @@ description: |-
 
   The NATS configuration file is parsed with UTF-8 encoding.
 
-  #### Note
-
+  {% callout type="note" %}
   The NATS configuration in the file can also be rendered as a JSON object (with comments!), but to combine it with variables the variables still have to be unquoted.
+  {% /callout %}
 
-  ## Strings and Numbers
+  ### Strings and Numbers
 
   The configuration parser is very forgiving, as you have seen:
 
@@ -31,7 +33,7 @@ description: |-
 
   String values that start with a digit _can_ create issues. To force such values as strings, quote them.
 
-  _BAD Config_:
+  Bad Config:
 
   ```text
   listen: 127.0.0.1:4222
@@ -41,7 +43,7 @@ description: |-
   }
   ```
 
-  Fixed Config:
+  Good Config:
 
   ```text
   listen: 127.0.0.1:4222
@@ -50,17 +52,17 @@ description: |-
   }
   ```
 
-  ## Variables
+  ### Variables
 
-  Server configurations can specify variables. Variables allow you to reference a value from one or more sections in the configuration
-
-  Variables:
+  Server configurations can specify variables. Variables allow you to reference a value from one or more sections in the configuration. Variables:
 
   * Are block-scoped
   * Are referenced with a `$` prefix. They have to be unquoted when being referenced, for example an assigment like `foo = "$example"` will result in `foo` being the literal string `"$example"`.
   * Can be resolved from environment variables having the same name
 
-  > If the environment variable value begins with a number you may have trouble resolving it depending on the server version you are running.
+  {% callout type="warning" %}
+  If the environment variable value begins with a number you may have trouble resolving it depending on the server version you are running.
+  {% /callout %}
 
   ```text
   # Define a variable in the config
@@ -81,9 +83,13 @@ description: |-
   }
   ```
 
-  export TOKEN="hello"; nats-server -c /config/file
+  The environment variable can either be inlined (below) or previously exported.
 
-  ## Include Directive
+  ```
+  TOKEN="hello" nats-server -c /config/file
+  ```
+
+  ### Include Directive
 
   The `include` directive allows you to split a server configuration into several files. This is useful for separating configuration into chunks that you can easily reuse between different servers.
 
@@ -96,7 +102,9 @@ description: |-
   include ./auth.conf
   ```
 
-  > Note that `include` is not followed by `=` or `:`, as it is a _directive_.
+  {% callout type="note" %}
+  Note that `include` is not followed by `=` or `:`, as it is a _directive_.
+  {% /callout %}
 
   auth.conf:
 
@@ -106,8 +114,10 @@ description: |-
   }
   ```
 
+  Starting the server only needs to refer to the top-level config containing the include.
+
   ```text
-  > nats-server -c server.conf
+  nats-server -c server.conf
   ```
 
 sections:
@@ -148,7 +158,14 @@ sections:
           Allow mixed TLS and non-TLS on the same port.
 
       ocsp:
-        type: ocsp
+        types:
+          - boolean
+          - ocsp
+        default: true
+        description: |-
+          OCSP Stapling is honored by default for certificates that have the
+          `status_request` `Must-Staple` flag. If explicitly disabled, the
+          server will not request staples even if `Must-Staple` is present.
 
       mqtt:
         type: mqtt
@@ -202,13 +219,24 @@ sections:
           One or more operator public keys to trust.
 
       resolver:
-        type: resolver
+        types:
+          - string
+          - resolver
         aliases:
           - account_resolver
           - account_resolvers
+        reloadable_note: |-
+          Note, enabling or disabling a resolver requires full server restart.
         description: |-
           Takes takes precedence over the value obtained from
           the `operator` if defined.
+
+          If a string value is used, it must be `MEMORY` or `URL(<url>)`
+          where where `url` is an HTTP endpoint pointing to the [NATS account
+          resolver](https://docs.nats.io/legacy/nas).
+
+          Note: the NATS account resolver is deprecated and the built-in
+          NATS-based resolver should be used.
 
       resolver_tls:
         type: tls
@@ -249,6 +277,7 @@ sections:
 
       gateway:
         type: gateways
+        reloadable: false
         description: |-
           Configuration for setting up gateway connections
           between clusters.
@@ -257,7 +286,9 @@ sections:
     properties:
       leafnodes:
         type: leafnode
-        description: Configuration for setting up leaf node connections.
+        reloadable: false
+        description: |-
+          Configuration for setting up leaf node connections.
         aliases:
           - leaf
 
@@ -269,6 +300,16 @@ sections:
           - enable-disable
           - jetstream
         default: false
+
+      store_dir:
+        type: string
+        deprecated: |-
+          Define `store_dir` under the top-level `jetstream` block.
+        aliases:
+          - storedir
+        description: |-
+          Directory to use for file-based JetStream storage.
+
   - name: Subject Mapping
     properties:
       mappings:
