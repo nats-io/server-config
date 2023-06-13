@@ -64,7 +64,8 @@ type Property struct {
 	Aliases []string
 	// Reloadable indicates a change to this property in a server config can
 	// be hot-reloaded rather than a hard restart of the server.
-	Reloadable bool
+	Reloadable     bool
+	ReloadableNote string
 	// Sections nested under this property. This only applies to object-based
 	// properties, e.g. `cluster {...}`.
 	Sections []*Section
@@ -143,20 +144,21 @@ type yamlConfig struct {
 }
 
 type yamlProperty struct {
-	Name        string
-	Type        string
-	Types       []string
-	URL         string
-	Default     any
-	Disabled    bool
-	Description string
-	Deprecation string
-	Examples    []*Example
-	Aliases     []string
-	Reloadable  *bool
-	Sections    []*yamlSection
-	Properties  yaml.Node
-	Version     string
+	Name           string
+	Type           string
+	Types          []string
+	URL            string
+	Default        any
+	Disabled       bool
+	Description    string
+	Deprecation    string
+	Examples       []*Example
+	Aliases        []string
+	Reloadable     *bool
+	ReloadableNote string `yaml:"reloadable_note"`
+	Sections       []*yamlSection
+	Properties     yaml.Node
+	Version        string
 }
 
 // Merge takes the schema identified by its type and merges in
@@ -184,6 +186,9 @@ func (p *yamlProperty) Merge(b *yamlProperty) {
 	}
 	if p.Reloadable == nil {
 		p.Reloadable = b.Reloadable
+	}
+	if p.ReloadableNote == "" {
+		p.ReloadableNote = b.ReloadableNote
 	}
 	if p.Deprecation == "" {
 		p.Deprecation = b.Deprecation
@@ -299,16 +304,17 @@ func parseProperty(ytypes map[string]*yamlProperty, yp *yamlProperty) (*Property
 	}
 
 	p := Property{
-		Name:        strings.TrimSpace(yp.Name),
-		Description: strings.TrimSpace(yp.Description),
-		Types:       yp.Types,
-		Disabled:    yp.Disabled,
-		Default:     yp.Default,
-		Deprecation: strings.TrimSpace(yp.Deprecation),
-		Examples:    yp.Examples,
-		Aliases:     yp.Aliases,
-		Reloadable:  reloadable,
-		Sections:    sections,
+		Name:           strings.TrimSpace(yp.Name),
+		Description:    strings.TrimSpace(yp.Description),
+		Types:          yp.Types,
+		Disabled:       yp.Disabled,
+		Default:        yp.Default,
+		Deprecation:    strings.TrimSpace(yp.Deprecation),
+		Examples:       yp.Examples,
+		Aliases:        yp.Aliases,
+		Reloadable:     reloadable,
+		ReloadableNote: strings.TrimSpace(yp.ReloadableNote),
+		Sections:       sections,
 	}
 
 	return &p, nil

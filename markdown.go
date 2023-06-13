@@ -14,18 +14,25 @@ type hierPath struct {
 	Path string
 }
 
-func generateTemplate(w io.Writer, p *Property, dir, base string, hier []*hierPath, relative bool, indexName string, breadcrumbs bool) error {
+func yesno(b bool) string {
+	if b {
+		return "Yes"
+	}
+	return "No"
+}
+
+func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hierPath) error {
 	o := func(str string, args ...any) {
 		fmt.Fprintf(w, str, args...)
 	}
 
 	o("# %s\n\n", p.Name)
 
-	if breadcrumbs {
+	if mc.Breadcrumbs {
 		for _, tok := range hier {
 			var p string
-			if relative {
-				rp, err := filepath.Rel(base, tok.Path)
+			if mc.RelativeLinks {
+				rp, err := filepath.Rel(mc.BasePath, tok.Path)
 				if err != nil {
 					return err
 				}
@@ -34,14 +41,19 @@ func generateTemplate(w io.Writer, p *Property, dir, base string, hier []*hierPa
 				p = tok.Path
 			}
 
-			if indexName != "" {
-				p = filepath.Join(p, indexName)
+			if !mc.TrimIndexFile {
+				p = filepath.Join(p, mc.IndexName)
 			}
 
 			l := fmt.Sprintf("[%s](%s)", tok.Name, p)
 			o("/ %s ", l)
 		}
 		o("\n\n")
+	}
+
+	bpath := mc.BasePath
+	if len(hier) > 0 {
+		bpath = filepath.Join(hier[len(hier)-1].Path, p.Name)
 	}
 
 	if p.Deprecation != "" {
@@ -55,9 +67,7 @@ func generateTemplate(w io.Writer, p *Property, dir, base string, hier []*hierPa
 	if p.Default != nil {
 		o("*Default value*: `%v`\n\n", p.Default)
 	}
-	if p.Disabled {
-		o("*Disabled by default*\n\n")
-	}
+
 	if len(p.Aliases) > 0 {
 		o("*Aliases*\n\n")
 		for _, a := range p.Aliases {
@@ -66,15 +76,23 @@ func generateTemplate(w io.Writer, p *Property, dir, base string, hier []*hierPa
 		o("\n\n")
 	}
 
-	o("*Reloadable*: `%v`\n\n", p.Reloadable)
+	if p.ReloadableNote != "" {
+		o("*Reloadable*: %s. %s\n\n", yesno(p.Reloadable), p.ReloadableNote)
+	} else {
+		o("*Reloadable*: %s\n\n", yesno(p.Reloadable))
+	}
 
 	if p.URL != "" {
 		o("*URL*: `%s`\n\n", p.URL)
 	}
 
-	o("*Types*\n\n")
-	for _, t := range p.Types {
-		o("- `%s`\n", t)
+	if len(p.Types) == 1 {
+		o("*Type*: `%s`\n\n", p.Types[0])
+	} else {
+		o("*Types*\n\n")
+		for _, t := range p.Types {
+			o("- `%s`\n", t)
+		}
 	}
 	o("\n\n")
 
@@ -90,23 +108,38 @@ func generateTemplate(w io.Writer, p *Property, dir, base string, hier []*hierPa
 				o("%s\n\n", s.Description)
 			}
 
+			if mc.TableProps {
+				o("| Name | Description | Default | Reloadable |\n")
+				o("| :--- | :---------- | :------ | :--------- |\n")
+			}
+
 			for _, x := range s.Properties {
 				var path string
-				if relative {
+				if mc.RelativeLinks {
 					path = x.Name
 				} else {
-					path = filepath.Join(base, x.Name)
+					path = filepath.Join(bpath, x.Name)
 				}
-				if indexName != "" {
-					path = filepath.Join(path, indexName)
+				if !mc.TrimIndexFile {
+					path = filepath.Join(path, mc.IndexName)
 				}
-				o("#### [`%s`](%s)\n\n", x.Name, path)
-				o("%s\n\n", x.Description)
-				if x.Default != nil {
-					o("Default value: `%v`\n\n", x.Default)
-				}
-				if x.Disabled {
-					o("*Disabled by default*`\n\n")
+
+				if mc.TableProps {
+					desc := strings.ReplaceAll(x.Description, "\n", " ")
+					def := "-"
+					if x.Default != nil {
+						def = fmt.Sprintf("`%v`", x.Default)
+					}
+					o("| [%s](%s) | %s | `%v` | %s |\n", x.Name, path, desc, def, yesno(x.Reloadable))
+				} else {
+					o("#### [`%s`](%s)\n\n", x.Name, path)
+					o("%s\n\n", x.Description)
+					if x.Default != nil {
+						o("Default value: `%v`\n\n", x.Default)
+					}
+					if x.Disabled {
+						o("*Disabled by default*`\n\n")
+					}
 				}
 			}
 		}
@@ -129,9 +162,18 @@ func generateTemplate(w io.Writer, p *Property, dir, base string, hier []*hierPa
 	return nil
 }
 
+type MarkdownConfig struct {
+	BasePath      string
+	RelativeLinks bool
+	IndexName     string
+	TrimIndexFile bool
+	Breadcrumbs   bool
+	TableProps    bool
+}
+
 // GenerateMarkdown generates a directory of markdown files, including
 // the top-level and one for each nested property.
-func GenerateMarkdown(config *Config, dir string, base string, relative bool, indexName string, breadcrumbs bool) error {
+func GenerateMarkdown(config *Config, dir string, mc *MarkdownConfig) error {
 	buf := bytes.NewBuffer(nil)
 
 	prop := Property{
@@ -140,21 +182,19 @@ func GenerateMarkdown(config *Config, dir string, base string, relative bool, in
 		Sections:    config.Sections,
 	}
 
-	if base == "/" {
-		base = ""
-	} else if strings.HasSuffix(base, "/") {
-		base = base[:len(base)-1]
+	if mc.BasePath == "/" {
+		mc.BasePath = ""
+	} else if strings.HasSuffix(mc.BasePath, "/") {
+		mc.BasePath = mc.BasePath[:len(mc.BasePath)-1]
 	}
 
-	return generatePropMarkdown(&prop, buf, dir, base, nil, relative, indexName, breadcrumbs)
+	return generatePropMarkdown(&prop, buf, dir, mc, nil)
 }
 
-func generatePropMarkdown(prop *Property, buf *bytes.Buffer, dir, base string, hier []*hierPath, relative bool, indexName string, breadcrumbs bool) error {
+func generatePropMarkdown(prop *Property, buf *bytes.Buffer, dir string, mc *MarkdownConfig, hier []*hierPath) error {
 	buf.Reset()
 
-	fmt.Printf("%s- [%s](%s)\n", strings.Repeat("  ", len(hier)), prop.Name, filepath.Join(base, indexName))
-
-	if err := generateTemplate(buf, prop, dir, base, hier, relative, indexName, breadcrumbs); err != nil {
+	if err := generateTemplate(buf, prop, mc, hier); err != nil {
 		return fmt.Errorf("execute template: %w", err)
 	}
 
@@ -162,21 +202,30 @@ func generatePropMarkdown(prop *Property, buf *bytes.Buffer, dir, base string, h
 		return fmt.Errorf("make dir: %w", err)
 	}
 
-	path := filepath.Join(dir, indexName)
+	path := filepath.Join(dir, mc.IndexName)
 	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("write file: %w", err)
 	}
 
 	var nhier []*hierPath
 	nhier = append(nhier, hier...)
+	base := mc.BasePath
+	if len(nhier) > 0 {
+		base = filepath.Join(nhier[len(nhier)-1].Path, prop.Name)
+	}
 	nhier = append(nhier, &hierPath{Name: prop.Name, Path: base})
+
+	upath := strings.TrimPrefix(base, "/")
+	if !mc.TrimIndexFile {
+		upath = filepath.Join(upath, mc.IndexName)
+	}
+	fmt.Printf("%s* [%s](%s)\n", strings.Repeat("  ", len(hier)), prop.Name, upath)
 
 	for _, s := range prop.Sections {
 		for _, p := range s.Properties {
 			// Property gets its own directory.
 			ndir := filepath.Join(dir, p.Name)
-			nbase := filepath.Join(base, p.Name)
-			if err := generatePropMarkdown(p, buf, ndir, nbase, nhier, relative, indexName, breadcrumbs); err != nil {
+			if err := generatePropMarkdown(p, buf, ndir, mc, nhier); err != nil {
 				return err
 			}
 		}
