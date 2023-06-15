@@ -57,44 +57,92 @@ func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hier
 	}
 
 	if p.Deprecation != "" {
-		o("_**Deprecation notice.** %s_\n\n", p.Deprecation)
+		o(`{%% callout type="warning" %%}
+**Deprecation notice**
+%s
+{%% /callout %%}
+`, p.Deprecation)
 	}
 
 	if p.Description != "" {
 		o("%s\n\n", p.Description)
 	}
 
-	if p.Default != nil {
-		o("*Default value*: `%v`\n\n", p.Default)
-	}
+	c := len(p.Types)
 
-	if len(p.Aliases) > 0 {
-		o("*Aliases*\n\n")
-		for _, a := range p.Aliases {
-			o("- `%s`\n", a)
-		}
-		o("\n\n")
-	}
-
-	if p.ReloadableNote != "" {
-		o("*Reloadable*: %s. %s\n\n", yesno(p.Reloadable), p.ReloadableNote)
+	if c == 0 {
+		o("- Value type: `object`. See [properties](#properties) below.\n")
+	} else if c == 1 {
+		o("- Value type: `%s`\n", p.Types[0].Type)
 	} else {
-		o("*Reloadable*: %s\n\n", yesno(p.Reloadable))
-	}
-
-	if p.URL != "" {
-		o("*URL*: `%s`\n\n", p.URL)
-	}
-
-	if len(p.Types) == 1 {
-		o("*Type*: `%s`\n\n", p.Types[0])
-	} else {
-		o("*Types*\n\n")
+		var types []string
 		for _, t := range p.Types {
-			o("- `%s`\n", t)
+			types = append(types, fmt.Sprintf("`%s`", t.Type))
+		}
+		if len(p.Sections) > 0 {
+			types = append(types, "`object`. See [properties](#properties) below.")
+		}
+		o("- Value type: %s\n", strings.Join(types, ", "))
+	}
+
+	if p.Default != nil {
+		o("- Default value: `%v`\n", p.Default)
+	} else {
+		o("- Default value: n/a\n")
+	}
+	if p.ReloadableNote != "" {
+		o("- Hot reloadable: %s. %s\n", yesno(p.Reloadable), p.ReloadableNote)
+	} else {
+		o("- Hot reloadable: %s\n", yesno(p.Reloadable))
+	}
+	if p.Version != "" {
+		o("- Version introduced: %s\n", p.Version)
+	}
+	if len(p.Aliases) > 0 {
+		var aliases []string
+		for _, a := range p.Aliases {
+			aliases = append(aliases, fmt.Sprintf("`%s`", a))
+		}
+		o("- Aliases: %s\n", strings.Join(aliases, ", "))
+	}
+
+	o("\n")
+
+	if c > 1 || c > 0 && len(p.Sections) > 0 {
+		o("## Values\n\n")
+
+		o("| Type | Description | Choices |\n")
+		o("| :--- | :---------- | :------ |\n")
+
+		for _, t := range p.Types {
+			ft := t.Type
+			if t.Array {
+				ft = fmt.Sprintf("[]%s", ft)
+			} else if t.Map {
+				ft = fmt.Sprintf("map[string]%s", ft)
+			}
+
+			var choices []string
+			for _, c := range t.Choices {
+				choices = append(choices, fmt.Sprintf("`%v`", c))
+			}
+			var choicesVal string
+			if len(choices) > 0 {
+				choicesVal = strings.Join(choices, ", ")
+			} else {
+				choicesVal = "-"
+			}
+			var desc string
+			if t.Description != p.Description {
+				desc = strings.ReplaceAll(t.Description, "\n", " ")
+			}
+			o("| %s | %s | %s |\n", ft, desc, choicesVal)
+		}
+
+		if len(p.Sections) > 0 {
+			o("| object | - | See [properties](#properties) | %s |\n")
 		}
 	}
-	o("\n\n")
 
 	if len(p.Sections) > 0 {
 		o("## Properties\n\n")
@@ -108,10 +156,8 @@ func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hier
 				o("%s\n\n", s.Description)
 			}
 
-			if mc.TableProps {
-				o("| Name | Description | Default | Reloadable |\n")
-				o("| :--- | :---------- | :------ | :--------- |\n")
-			}
+			o("| Name | Description | Default | Reloadable | Version |\n")
+			o("| :--- | :---------- | :------ | :--------- | :------ |\n")
 
 			for _, x := range s.Properties {
 				var path string
@@ -124,23 +170,12 @@ func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hier
 					path = filepath.Join(path, mc.IndexName)
 				}
 
-				if mc.TableProps {
-					desc := strings.ReplaceAll(x.Description, "\n", " ")
-					def := "-"
-					if x.Default != nil {
-						def = fmt.Sprintf("`%v`", x.Default)
-					}
-					o("| [%s](%s) | %s | `%v` | %s |\n", x.Name, path, desc, def, yesno(x.Reloadable))
-				} else {
-					o("#### [`%s`](%s)\n\n", x.Name, path)
-					o("%s\n\n", x.Description)
-					if x.Default != nil {
-						o("Default value: `%v`\n\n", x.Default)
-					}
-					if x.Disabled {
-						o("*Disabled by default*`\n\n")
-					}
+				desc := strings.ReplaceAll(x.Description, "\n", " ")
+				def := "-"
+				if x.Default != nil {
+					def = fmt.Sprintf("`%v`", x.Default)
 				}
+				o("| [%s](%s) | %s | `%v` | %s | %s |\n", x.Name, path, desc, def, yesno(x.Reloadable), x.Version)
 			}
 		}
 	}
@@ -168,7 +203,6 @@ type MarkdownConfig struct {
 	IndexName     string
 	TrimIndexFile bool
 	Breadcrumbs   bool
-	TableProps    bool
 }
 
 // GenerateMarkdown generates a directory of markdown files, including

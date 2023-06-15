@@ -3,20 +3,21 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Config models the configuration
+// Config models the configuration.
 type Config struct {
 	// Name used for doc generation.
 	Name string
 	// Top-level config description for doc generation.
 	Description string
-	// Sections are the top-level sections for the config.
+	// Sections are the top-level sections for the config. This is only
+	// used for logical ordering for the docs. It has no applicability
+	// to the config itself.
 	Sections []*Section
 	// Types is an index of custom-defined types, e.g. `tls`, `listen`,
 	// `user`, etc.
@@ -40,7 +41,7 @@ type Property struct {
 	// Name of the property, e.g. `host` or `jetstream`.
 	Name string
 	// Types are the set of types this property's value could be.
-	Types []string
+	Types []*TypeOption
 	// URL is an optional URL to a page with more information about
 	// this property.
 	URL string
@@ -72,10 +73,25 @@ type Property struct {
 	// Version indicates the version of the server this property
 	// became available.
 	Version string
+
+	Choices []string
+
+	// Denotes the value is an array of other value types.
+	Array bool
+	// Denotes the value is an arbitrary map of string to any value type.
+	Map bool
+
+	typeRefs []string
 }
 
 type Example struct {
+	// Short label for the example.
 	Label string
+
+	// Longer description of the example, noting specific details.
+	Description string
+
+	// The value, which will be rendered as code.
 	Value string
 }
 
@@ -86,8 +102,8 @@ func Parse(path string, typePaths []string) (*Config, error) {
 		return nil, err
 	}
 
-	// Index of types for reference.
-	ytypes := make(map[string]*yamlProperty)
+	// Load and index the types for reference when parsing.
+	ytypes := make(map[string]*yamlType)
 	for _, path := range typePaths {
 		f, err := loadTypes(path)
 		if err != nil {
@@ -99,42 +115,47 @@ func Parse(path string, typePaths []string) (*Config, error) {
 				return nil, fmt.Errorf("duplicate type found: %q", k)
 			}
 			t.Name = k
+			if t.Type != "" {
+				t.Types = []string{t.Type}
+			}
+			if len(t.Types) == 0 {
+				return nil, fmt.Errorf("type %q has no types", k)
+			}
+
+			// If this property has properties itself, we define an implicit
+			// section for it.
+			if !t.Properties.IsZero() {
+				if len(t.Sections) > 0 {
+					return nil, fmt.Errorf("type %q has both properties and sections", k)
+				}
+
+				t.Sections = []*yamlSection{{
+					Properties: t.Properties,
+				}}
+			}
+
 			ytypes[k] = t
 		}
 	}
 
-	types := make(map[string]*Property)
-	for k, yp := range ytypes {
-		p, err := parseProperty(ytypes, yp)
-		if err != nil {
-			return nil, err
-		}
-		types[k] = p
-	}
-
 	// Top-level config sections.
-	var sections []*Section
-
-	for _, ys := range yc.Sections {
-		s, err := parseSection(ytypes, ys)
-		if err != nil {
-			return nil, err
-		}
-		sections = append(sections, s)
+	sections, err := parseSections(ytypes, yc.Sections)
+	if err != nil {
+		return nil, err
 	}
 
 	c := Config{
 		Name:        yc.Name,
 		Description: yc.Description,
 		Sections:    sections,
-		Types:       types,
+		//Types:       types,
 	}
 
 	return &c, nil
 }
 
 type yamlFile struct {
-	Types map[string]*yamlProperty
+	Types map[string]*yamlType
 }
 
 type yamlConfig struct {
@@ -143,7 +164,7 @@ type yamlConfig struct {
 	Sections    []*yamlSection
 }
 
-type yamlProperty struct {
+type yamlType struct {
 	Name           string
 	Type           string
 	Types          []string
@@ -159,55 +180,52 @@ type yamlProperty struct {
 	Sections       []*yamlSection
 	Properties     yaml.Node
 	Version        string
+	Choices        []string
 }
 
-// Merge takes the schema identified by its type and merges in
-// the unset fields.
-func (p *yamlProperty) Merge(b *yamlProperty) {
-	if b.Type != "" {
-		p.Types = []string{b.Type}
-	} else {
-		p.Types = b.Types
+func (p *yamlType) Combine(b *yamlType) *yamlType {
+	x := *p
+
+	if x.Version != "" {
+		x.Version = b.Version
 	}
-	if p.Version != "" {
-		p.Version = b.Version
+	if x.Disabled {
+		x.Disabled = b.Disabled
 	}
-	if p.Disabled {
-		p.Disabled = b.Disabled
+	if x.Description == "" {
+		x.Description = b.Description
 	}
-	if p.Description == "" {
-		p.Description = b.Description
+	if x.Default == nil {
+		x.Default = b.Default
 	}
-	if p.Default == nil {
-		p.Default = b.Default
+	if len(x.Aliases) == 0 {
+		x.Aliases = append(x.Aliases, b.Aliases...)
 	}
-	if len(p.Aliases) == 0 {
-		p.Aliases = b.Aliases
+	if x.Reloadable == nil {
+		x.Reloadable = b.Reloadable
 	}
-	if p.Reloadable == nil {
-		p.Reloadable = b.Reloadable
+	if x.ReloadableNote == "" {
+		x.ReloadableNote = b.ReloadableNote
 	}
-	if p.ReloadableNote == "" {
-		p.ReloadableNote = b.ReloadableNote
+	if x.Deprecation == "" {
+		x.Deprecation = b.Deprecation
 	}
-	if p.Deprecation == "" {
-		p.Deprecation = b.Deprecation
+	if x.URL == "" {
+		x.URL = b.URL
 	}
-	if len(p.Examples) == 0 {
-		p.Examples = b.Examples
+
+	// TODO: deep copy needed?
+	if len(x.Examples) == 0 {
+		x.Examples = append(x.Examples, b.Examples...)
 	}
-	if p.Properties.IsZero() {
-		p.Properties = b.Properties
+	if len(x.Choices) == 0 {
+		x.Choices = append(x.Choices, b.Choices...)
 	}
-	if len(p.Sections) == 0 {
-		for _, s := range b.Sections {
-			p.Sections = append(p.Sections, &yamlSection{
-				Name:        s.Name,
-				Description: s.Description,
-				Properties:  s.Properties,
-			})
-		}
+	if len(x.Sections) == 0 {
+		x.Sections = append(x.Sections, b.Sections...)
 	}
+
+	return &x
 }
 
 type yamlSection struct {
@@ -252,52 +270,144 @@ var (
 	mapTypeRe   = regexp.MustCompile(`^map\((.+)\)$`)
 )
 
-func parseProperty(ytypes map[string]*yamlProperty, yp *yamlProperty) (*Property, error) {
+var (
+	primitiveTypes = map[string]struct{}{
+		"boolean":  {},
+		"string":   {},
+		"duration": {},
+		"float":    {},
+		"integer":  {},
+		"object":   {},
+	}
+)
+
+// TypeOption represents a value type for a property type.
+// For example, the `jetstream` property can be a boolean, a string
+// enum, or a JetStream object with its own set of properties.
+type TypeOption struct {
+	Description string
+	// Defines the type, whether primitive or an object type.
+	Type string
+	// Denotes the value is an array of other value types.
+	Array bool
+	// Denotes the value is an arbitrary map of string to any value type.
+	Map bool
+	// For value types that are enums, this defines the set of choices.
+	Choices []string
+
+	Info *yamlType
+}
+
+func derefType(ytypes map[string]*yamlType, yp *yamlType, t string) ([]*TypeOption, error) {
+	var (
+		isArray bool
+		isMap   bool
+	)
+
+	if m := arrayTypeRe.FindStringSubmatch(t); len(m) == 2 {
+		isArray = true
+		t = m[1]
+	}
+	if m := mapTypeRe.FindStringSubmatch(t); len(m) == 2 {
+		isMap = true
+		t = m[1]
+	}
+
+	var vts []*TypeOption
+
+	// Primitive types.
+	if _, ok := primitiveTypes[t]; ok {
+		var info *yamlType
+		if t == "object" && len(yp.Sections) > 0 {
+			info = yp
+		}
+		vts = append(vts, &TypeOption{
+			Description: yp.Description,
+			Type:        t,
+			Map:         isMap,
+			Array:       isArray,
+			Choices:     yp.Choices,
+			Info:        info,
+		})
+
+		return vts, nil
+	}
+
+	// Dereference non-primitive types.
+	b, ok := ytypes[t]
+	if !ok {
+		return nil, fmt.Errorf("unknown type %q", t)
+	}
+
+	bvts, err := derefTypes(ytypes, b)
+	if err != nil {
+		return nil, err
+	}
+
+	vts = append(vts, bvts...)
+
+	return vts, nil
+}
+
+func derefTypes(ytypes map[string]*yamlType, yp *yamlType) ([]*TypeOption, error) {
+	// Normalize.
+	var types []string
 	if yp.Type != "" {
-		yp.Types = []string{yp.Type}
+		types = append(types, yp.Type)
+	} else {
+		types = append(types, yp.Types...)
 	}
 
-	for _, t := range yp.Types {
-		switch t {
-		// Primitives
-		case "object", "float", "string", "integer", "boolean", "duration":
-		default:
-			// Generic container types.
-			if arrayTypeRe.MatchString(t) || mapTypeRe.MatchString(t) {
-				break
-			}
+	var vts []*TypeOption
 
-			b, ok := ytypes[t]
-			if !ok {
-				return nil, fmt.Errorf("unknown type %q for property %q", t, yp.Name)
-			}
+	for _, t := range types {
+		ts, err := derefType(ytypes, yp, t)
+		if err != nil {
+			return nil, err
+		}
 
-			if len(yp.Types) == 1 {
-				yp.Merge(b)
-			} else {
-				log.Printf("WARN: deref with multiple types for %q", yp.Name)
+		vts = append(vts, ts...)
+	}
+
+	return vts, nil
+}
+
+// parseProperty recursively builds a property from the raw property info.
+// The provided `type` or `types` dictates how the property is constructed.
+// The simplest case is a single primitive type, e.g. `string`.
+func parseProperty(ytypes map[string]*yamlType, yp *yamlType) (*Property, error) {
+	dtypes, err := derefTypes(ytypes, yp)
+	if err != nil {
+		return nil, err
+	}
+
+	var nyp *TypeOption
+	var otyps []*TypeOption
+
+	for _, dt := range dtypes {
+		if dt.Info != nil {
+			if nyp != nil {
+				return nil, fmt.Errorf("property %q has multiple info types", yp.Name)
 			}
+			nyp = dt
+		} else {
+			otyps = append(otyps, dt)
 		}
 	}
 
-	if !yp.Properties.IsZero() {
-		yp.Sections = []*yamlSection{{
-			Properties: yp.Properties,
-		}}
+	// Hoist up the referenced type.
+	if nyp != nil {
+		yp = yp.Combine(nyp.Info)
+		yp.Type = nyp.Type
 	}
 
-	var sections []*Section
-	if len(yp.Sections) > 0 {
-		sections = make([]*Section, len(yp.Sections))
-		for i, ys := range yp.Sections {
-			s, err := parseSection(ytypes, ys)
-			if err != nil {
-				return nil, err
-			}
-			sections[i] = s
-		}
+	// If this property has sections, recursively parse them.
+	sections, err := parseSections(ytypes, yp.Sections)
+	if err != nil {
+		return nil, err
 	}
 
+	// Assume properties are reloadable by default.
 	reloadable := true
 	if yp.Reloadable != nil {
 		reloadable = *yp.Reloadable
@@ -306,7 +416,7 @@ func parseProperty(ytypes map[string]*yamlProperty, yp *yamlProperty) (*Property
 	p := Property{
 		Name:           strings.TrimSpace(yp.Name),
 		Description:    strings.TrimSpace(yp.Description),
-		Types:          yp.Types,
+		Types:          otyps,
 		Disabled:       yp.Disabled,
 		Default:        yp.Default,
 		Deprecation:    strings.TrimSpace(yp.Deprecation),
@@ -314,13 +424,30 @@ func parseProperty(ytypes map[string]*yamlProperty, yp *yamlProperty) (*Property
 		Aliases:        yp.Aliases,
 		Reloadable:     reloadable,
 		ReloadableNote: strings.TrimSpace(yp.ReloadableNote),
+		URL:            yp.URL,
+		Choices:        yp.Choices,
 		Sections:       sections,
 	}
 
 	return &p, nil
 }
 
-func parseSection(ytypes map[string]*yamlProperty, ys *yamlSection) (*Section, error) {
+// parseSections parses a list of encoded YAML sections.
+func parseSections(ytypes map[string]*yamlType, yss []*yamlSection) ([]*Section, error) {
+	sections := make([]*Section, len(yss))
+	for i, ys := range yss {
+		s, err := parseSection(ytypes, ys)
+		if err != nil {
+			return nil, err
+		}
+		sections[i] = s
+	}
+	return sections, nil
+}
+
+// parseSection parses an encoded YAML section.
+func parseSection(ytypes map[string]*yamlType, ys *yamlSection) (*Section, error) {
+	// If the section has no properties, it's just a header.
 	if len(ys.Properties.Content) == 0 {
 		return &Section{
 			Name:        ys.Name,
@@ -328,10 +455,12 @@ func parseSection(ytypes map[string]*yamlProperty, ys *yamlSection) (*Section, e
 		}, nil
 	}
 
+	// Validate the node type.
 	if ys.Properties.Kind != yaml.MappingNode {
 		return nil, fmt.Errorf("expected YAML mapping node: line %d", ys.Properties.Line)
 	}
 
+	// Validate there are key-value pairs.
 	if len(ys.Properties.Content)%2 != 0 {
 		return nil, fmt.Errorf("expected key-value pairs")
 	}
@@ -341,13 +470,15 @@ func parseSection(ytypes map[string]*yamlProperty, ys *yamlSection) (*Section, e
 		kc := ys.Properties.Content[i*2]
 		vc := ys.Properties.Content[i*2+1]
 
-		var yp yamlProperty
+		// Decode the raw property type info.
+		var yp yamlType
 		if err := vc.Decode(&yp); err != nil {
 			return nil, fmt.Errorf("failed property decode at line %d: %w", vc.Line, err)
 		}
 
 		yp.Name = kc.Value
 
+		// Parse the property info to a concrete property.
 		p, err := parseProperty(ytypes, &yp)
 		if err != nil {
 			return nil, err

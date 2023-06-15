@@ -93,7 +93,11 @@ func generateConfigValue(w io.Writer, depth int, cdepth int, p *Property, disabl
 	*/
 
 	if p.Default == nil {
-		t := strings.Join(p.Types, " | ")
+		var typs []string
+		for _, t := range p.Types {
+			typs = append(typs, t.Type)
+		}
+		t := strings.Join(typs, " | ")
 		fmt.Fprintf(w, "%s# %s: <%s>\n", tab, p.Name, t)
 	} else {
 		fmt.Fprintf(w, "%s# %s: %v\n", tab, p.Name, p.Default)

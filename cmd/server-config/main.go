@@ -26,7 +26,6 @@ func run() error {
 		indexFilename string
 		trimIndex     bool
 		breadcrumbs   bool
-		renderTable   bool
 	)
 
 	flag.StringVar(&configYaml, "config", "config.yaml", "The root config YAML file.")
@@ -37,7 +36,6 @@ func run() error {
 	flag.StringVar(&indexFilename, "indexname", "index.md", "The index filename for a directory.")
 	flag.BoolVar(&trimIndex, "trimindex", false, "Trim the index filename from the URL path.")
 	flag.BoolVar(&breadcrumbs, "breadcrumbs", false, "Include breadcrumbs navigation to a page.")
-	flag.BoolVar(&renderTable, "table", false, "Render properties as tables.")
 
 	flag.Parse()
 
@@ -61,7 +59,6 @@ func run() error {
 		IndexName:     indexFilename,
 		TrimIndexFile: trimIndex,
 		Breadcrumbs:   breadcrumbs,
-		TableProps:    renderTable,
 	}
 
 	//config.GenerateConfig(os.Stdout, c)
