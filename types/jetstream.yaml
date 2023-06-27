@@ -29,6 +29,7 @@ types:
 
   jetstream:
     type: object
+    reloadable: false
     properties:
       enabled:
         type: boolean

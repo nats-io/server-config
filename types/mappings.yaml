@@ -1,4 +1,70 @@
 types:
   mappings:
+    type: map(mapping)
+    examples:
+      - label: Basic
+        description: |-
+          Messages published on `orders` will be broadcasted by the
+          server on subject `orders.internal`. Subscribers expecting to
+          receive the message must be subscribed to `orders.internal`.
+
+        value: |-
+          mappings {
+            "orders": "orders.internal"
+          }
+
+      - label: Token reordering
+        description: |-
+          Wildcards can be selected using the `{{wildcard(N)}}` notation
+          using 1-based indexing.
+
+          A message published on subject `orders.placed.123` would be
+          mapped to `orders.123.placed`.
+
+        value: |-
+          mappings {
+            "orders.*.*": "orders.{{wildcard(2)}}.{{wildcard(1)}}"
+          }
+
+      - label: Deterministic subject partitioning
+        description: |-
+          Subject partitioning can be achieved using the
+          `{{partition(n, p...)}}` notation where `n` is the number of partitions
+          and the `p...` represents the wildcard positions.
+
+          A message published to `orders.placed.123` would be mapped to
+          `orders.placed.123.0`, `orders.placed.124` would be mapped to
+          `orders.placed.124.3`, and so on.
+
+        value: |-
+          mappings {
+            "orders.*.*": "orders.{{wildcard(1)}}.{{wildcard(2)}}.{{partition(5,1,2)}}"
+          }
+
+  mapping:
+    types:
+      - string
+      - array(mapping-destination)
+
+  mapping-destination:
     type: object
     properties:
+      destination:
+        aliases:
+          - dest
+        type: string
+        description: |-
+          The subject mapping destination for the source subject.
+
+      weight:
+        types:
+          - string
+          - integer
+        description: |-
+          A number between 0 and 100 (inclusive). The string form allows for
+          a trailing `%` sign.
+
+      cluster:
+        type: string
+        description: |-
+          An explicit cluster where the weight applies to.

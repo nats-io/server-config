@@ -187,9 +187,9 @@ sections:
           Static single or multi-user declaration.
 
       accounts:
-        type: accounts
+        type: map(account)
         description: |-
-          Static set of accounts.
+          Static config-defined accounts.
 
       no_auth_user:
         type: string
@@ -295,6 +295,7 @@ sections:
   - name: JetStream
     properties:
       jetstream:
+        reloadable: false
         types:
           - boolean
           - enable-disable

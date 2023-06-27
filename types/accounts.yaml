@@ -1,18 +1,12 @@
 ---
 types:
-  accounts:
-    type: map(account)
+  account:
+    type: object
     description: |-
       An account is the unit of multi-tenancy. Messaging performed
       by users within an account can be observed (by default) by any
       user. However, users *across* accounts are completely isolated
       and messages will never be observed even on the same subjects.
-
-  account:
-    type: object
-    description: |-
-      An account can opt-in to export and/or import zero or more
-      *streams* and *services*.
 
     properties:
       users:
@@ -30,6 +24,127 @@ types:
         description: |-
           A list of imports for this account.
 
+      nkey:
+        type: string
+        description: |-
+          Public nkey associated with this account.
+          TODO: when should this be used?
+
+      jetstream:
+        types:
+          - boolean
+          - enable-disable
+          - account-jetstream-limits
+
+      default_permissions:
+        type: permissions
+        description: |-
+          The default permissions applied to users within this account,
+          if permissions are not explicitly defined for them.
+
+      mappings:
+        type: mappings
+        aliases:
+          - maps
+
+      limits:
+        type: account-limits
+
+  account-limits:
+    type: object
+    properties:
+      max_connections:
+        type: integer
+        aliases:
+          - max_conns
+        description: |-
+          The maximum number of concurrent connections for this account.
+
+      max_subscriptions:
+        type: integer
+        aliases:
+          - max_subs
+        description: |-
+          The maximum number of concurrent subscriptions for this account.
+
+      max_payload:
+        type: integer
+        aliases:
+          - max_pay
+        description: |-
+          The maximum payload size allowed for messages.
+
+      max_leafnodes:
+        type: integer
+        aliases:
+          - max_leafs
+        description: |-
+          The maximum number of concurrent leafnode connections allowed.
+
+  account-jetstream-limits:
+    type: object
+    properties:
+      max_memory:
+        type: integer
+        aliases:
+          - max_mem
+          - mem
+          - memory
+        description: |-
+          The maximum storage allowed across all memory-based assets.
+
+      max_file:
+        type: integer
+        aliases:
+          - max_store
+          - max_disk
+          - store
+          - disk
+        description: |-
+          The maximum storage allowed across all file-based assets.
+
+      max_streams:
+        type: integer
+        aliases:
+          - streams
+        description: |-
+          The maximum number of streams allowed.
+
+      max_consumers:
+        type: integer
+        aliases:
+          - consumers
+        description: |-
+          The maximum number of consumers allowed.
+
+      max_bytes_required:
+        type: boolean
+        aliases:
+          - max_stream_bytes
+          - max_bytes
+        description: |-
+          If true, requires all streams to have an explicit max bytes defined
+          for both file and memory-based streams.
+
+      memory_max_stream_bytes:
+        type: integer
+        aliases:
+          - mem_max_stream_bytes
+        description: |-
+          Maximum bytes any given memory-based stream is allowed to be allocated.
+
+      disk_max_stream_bytes:
+        type: integer
+        aliases:
+          - store_max_stream_bytes
+        description: |-
+          Maximum bytes any given file-based stream is allowed to be allocated.
+
+      max_ack_pending:
+        type: integer
+        description: |-
+          The maximum ack pending count allowed to be set on any given consumer.
+
   account-export:
     type: object
     properties:
@@ -39,7 +154,7 @@ types:
           A subject or subject with wildcards that the account will publish to.
           Exclusive of `service`.
         examples:
-          - value: 'foo.>'
+          - value: "foo.>"
 
       service:
         type: string
@@ -47,7 +162,7 @@ types:
           A subject or subject with wildcards that the account will subscribe to.
           Exclusive of `stream`.
         examples:
-          - value: 'bar.>'
+          - value: "bar.>"
 
       accounts:
         type: array(string)
@@ -56,7 +171,7 @@ types:
           If not specified, the service or stream is public and any account
           can import it.
         examples:
-          - value: '[B, C]'
+          - value: "[B, C]"
 
       response_type:
         type: string
@@ -135,3 +250,23 @@ types:
 
       permissions:
         type: permissions
+
+      allowed_connection_types:
+        type: array(string)
+        choices:
+          - STANDARD
+          - WEBSOCKET
+          - LEAFNODE
+          - MQTT
+        description: |-
+          If specified, the user is constrained to the specified connection
+          types.
+
+          - `STANDARD` indicates a standard client TCP connection using the
+            NATS protocol.
+          - `WEBSOCKET` indicates a WebSocket-based connection to NATS if the
+            `websockets` configuration is enabled.
+          - `LEAFNODE` indicates a connection established by configured leafnode
+            `remote` on a server.
+          - `MQTT` indicates a connection established by an MQTT client to NATS
+            if the `mqtt` configuration is enabled.

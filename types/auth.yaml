@@ -1,5 +1,57 @@
 ---
 types:
+  simple-authorization:
+    type: object
+    aliases:
+      - authentication
+    description: |-
+      The recommended way to configure config-based authorization
+      is using the top-level `authorization` block. However, this
+      localized block can be used to override the top-level credentials.
+
+    properties:
+      username:
+        type: string
+        description: |-
+          Specifies a global user name that clients can use to authenticate
+          the server (requires `password`, exclusive of `token`).
+        aliases:
+          - user
+
+      password:
+        type: string
+        description: |-
+          Specifies a global password that clients can use to authenticate
+          the server (requires `user`, exclusive of `token`).
+        aliases:
+          - pass
+
+      token:
+        type: string
+        description: |-
+          Specifies a global token that clients can use to authenticate with
+          the server (exclusive of `user` and `password`).
+
+      timeout:
+        type: float
+        default: 1
+        description: |-
+          Maximum number of seconds to wait for a client to authenticate.
+
+    examples:
+      - label: Username/password
+        value: |
+          authorization {
+            username: app
+            password: s3cret!
+          }
+
+      - label: Token
+        value: |
+          authorization {
+            token: 6d37bfcc-3eba-4f1f-a6e9-88a3c6ddbf9c
+          }
+
   network-authorization:
     type: object
     examples:
