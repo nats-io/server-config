@@ -52,118 +52,120 @@ func GenerateConfig(w io.Writer, sections []*Section) {
 }
 
 func generateConfigValue(w io.Writer, depth int, cdepth int, p *Property, disabled bool) {
-	tab := strings.Repeat(" ", depth*defaulTabSize)
-	//ctab := strings.Repeat(" ", cdepth*defaulTabSize)
-
 	/*
-		first := true
-		for _, k := range p.Types {
-			var prefixChar byte
-			var suffixChar byte
+		tab := strings.Repeat(" ", depth*defaulTabSize)
+		//ctab := strings.Repeat(" ", cdepth*defaulTabSize)
 
-			if strings.HasPrefix(k, "[]") {
-				prefixChar = '['
-				suffixChar = ']'
-				k = k[2:]
-			} else if strings.HasPrefix(k, "{}") {
-				prefixChar = '{'
-				suffixChar = '}'
-				k = k[2:]
+			first := true
+			for _, k := range p.Types {
+				var prefixChar byte
+				var suffixChar byte
+
+				if strings.HasPrefix(k, "[]") {
+					prefixChar = '['
+					suffixChar = ']'
+					k = k[2:]
+				} else if strings.HasPrefix(k, "{}") {
+					prefixChar = '{'
+					suffixChar = '}'
+					k = k[2:]
+				}
+
+				// Ignore unknown types which should only be primitives at this stage.
+				t, ok := types[k]
+				if !ok {
+					continue
+				}
+
+				if first {
+					fmt.Fprintf(w, "%s# Forms:\n", tab)
+					first = false
+				}
+
+				if len(t.Sections) > 0 {
+					fmt.Fprintf(w, "%s# %s%s %c{\n", tab, ctab, t.Name, prefixChar)
+					generateConfigValue(w, depth, cdepth+1, types, t)
+					fmt.Fprintf(w, "%s# %s}%c\n", tab, ctab, suffixChar)
+				} else {
+					generateConfigValue(w, depth, cdepth+1, types, t)
+				}
 			}
 
-			// Ignore unknown types which should only be primitives at this stage.
-			t, ok := types[k]
-			if !ok {
-				continue
+		if p.Default == nil {
+			var typs []string
+			for _, t := range p.Types {
+				typs = append(typs, t.Type)
 			}
-
-			if first {
-				fmt.Fprintf(w, "%s# Forms:\n", tab)
-				first = false
-			}
-
-			if len(t.Sections) > 0 {
-				fmt.Fprintf(w, "%s# %s%s %c{\n", tab, ctab, t.Name, prefixChar)
-				generateConfigValue(w, depth, cdepth+1, types, t)
-				fmt.Fprintf(w, "%s# %s}%c\n", tab, ctab, suffixChar)
-			} else {
-				generateConfigValue(w, depth, cdepth+1, types, t)
-			}
+			t := strings.Join(typs, " | ")
+			fmt.Fprintf(w, "%s# %s: <%s>\n", tab, p.Name, t)
+		} else {
+			fmt.Fprintf(w, "%s# %s: %v\n", tab, p.Name, p.Default)
 		}
 	*/
-
-	if p.Default == nil {
-		var typs []string
-		for _, t := range p.Types {
-			typs = append(typs, t.Type)
-		}
-		t := strings.Join(typs, " | ")
-		fmt.Fprintf(w, "%s# %s: <%s>\n", tab, p.Name, t)
-	} else {
-		fmt.Fprintf(w, "%s# %s: %v\n", tab, p.Name, p.Default)
-	}
 }
 
 func generateConfig(w io.Writer, depth int, cdepth int, sections []*Section, disabled bool) {
-	// Comment indent
-	tab := strings.Repeat(" ", depth*defaulTabSize)
-	// Code indent
-	//ctab := strings.Repeat(" ", cdepth*defaulTabSize)
+	/*
+		// Comment indent
+		tab := strings.Repeat(" ", depth*defaulTabSize)
+		// Code indent
+		//ctab := strings.Repeat(" ", cdepth*defaulTabSize)
 
-	for j, s := range sections {
-		if j > 0 {
-			fmt.Fprintf(w, "\n")
-		}
-
-		if s.Name != "" {
-			line := strings.Repeat("#", len(s.Name)+4)
-			fmt.Fprintf(w, "%s%s\n", tab, line)
-			fmt.Fprintf(w, "%s# %s #\n", tab, s.Name)
-			fmt.Fprintf(w, "%s%s\n\n", tab, line)
-		}
-
-		lastIndex := len(s.Properties) - 1
-		for i, p := range s.Properties {
-			if p.Description != "" {
-				lines := splitText(p.Description, defaultLineLength)
-				for _, line := range lines {
-					fmt.Fprintf(w, "%s# %s\n", tab, line)
-				}
+		for j, s := range sections {
+			if j > 0 {
+				fmt.Fprintf(w, "\n")
 			}
 
-			if len(p.Examples) > 0 {
-				fmt.Fprintf(w, "%s# Examples:\n", tab)
-				for _, e := range p.Examples {
-					fmt.Fprintf(w, "%s#   - %v\n", tab, e)
-				}
+			if s.Name != "" {
+				line := strings.Repeat("#", len(s.Name)+4)
+				fmt.Fprintf(w, "%s%s\n", tab, line)
+				fmt.Fprintf(w, "%s# %s #\n", tab, s.Name)
+				fmt.Fprintf(w, "%s%s\n\n", tab, line)
 			}
 
-			if len(p.Deprecation) > 0 {
-				fmt.Fprintf(w, "%s# Deprecation Note:\n", tab)
-				lines := splitText(p.Deprecation, defaultLineLength)
-				for _, line := range lines {
-					fmt.Fprintf(w, "%s# %s\n", tab, line)
+			lastIndex := len(s.Properties) - 1
+			for i, p := range s.Properties {
+				if p.Description != "" {
+					lines := splitText(p.Description, defaultLineLength)
+					for _, line := range lines {
+						fmt.Fprintf(w, "%s# %s\n", tab, line)
+					}
 				}
-			}
 
-			if len(p.Sections) > 0 {
-				var prefixByte byte
-				if disabled || p.Disabled {
-					prefixByte = '#'
+				if len(p.Examples) > 0 {
+					fmt.Fprintf(w, "%s# Examples:\n", tab)
+					for _, e := range p.Examples {
+						fmt.Fprintf(w, "%s#   - %v\n", tab, e)
+					}
 				}
-				fmt.Fprintf(w, "%s%c%s {\n", tab, prefixByte, p.Name)
-				generateConfig(w, depth+1, cdepth, p.Sections, p.Disabled)
-				fmt.Fprintf(w, "%s%c}\n", tab, prefixByte)
+
+				if len(p.Deprecation) > 0 {
+					fmt.Fprintf(w, "%s# Deprecation Note:\n", tab)
+					lines := splitText(p.Deprecation, defaultLineLength)
+					for _, line := range lines {
+						fmt.Fprintf(w, "%s# %s\n", tab, line)
+					}
+				}
+
+				if len(p.Sections) > 0 {
+					var prefixByte byte
+					if disabled || p.Disabled {
+						prefixByte = '#'
+					}
+					fmt.Fprintf(w, "%s%c%s {\n", tab, prefixByte, p.Name)
+					generateConfig(w, depth+1, cdepth, p.Sections, p.Disabled)
+					fmt.Fprintf(w, "%s%c}\n", tab, prefixByte)
+					if i != lastIndex {
+						fmt.Fprintf(w, "\n")
+					}
+					continue
+				}
+
+				generateConfigValue(w, depth, cdepth, p, disabled)
 				if i != lastIndex {
 					fmt.Fprintf(w, "\n")
 				}
-				continue
-			}
-
-			generateConfigValue(w, depth, cdepth, p, disabled)
-			if i != lastIndex {
-				fmt.Fprintf(w, "\n")
 			}
 		}
-	}
+	*/
 }

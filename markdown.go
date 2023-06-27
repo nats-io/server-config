@@ -68,23 +68,6 @@ func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hier
 		o("%s\n\n", p.Description)
 	}
 
-	c := len(p.Types)
-
-	if c == 0 {
-		o("- Value type: `object`. See [properties](#properties) below.\n")
-	} else if c == 1 {
-		o("- Value type: `%s`\n", p.Types[0].Type)
-	} else {
-		var types []string
-		for _, t := range p.Types {
-			types = append(types, fmt.Sprintf("`%s`", t.Type))
-		}
-		if len(p.Sections) > 0 {
-			types = append(types, "`object`. See [properties](#properties) below.")
-		}
-		o("- Value type: %s\n", strings.Join(types, ", "))
-	}
-
 	if p.Default != nil {
 		o("- Default value: `%v`\n", p.Default)
 	} else {
@@ -108,74 +91,76 @@ func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hier
 
 	o("\n")
 
-	if c > 1 || c > 0 && len(p.Sections) > 0 {
-		o("## Values\n\n")
+	o("## Values\n\n")
 
-		o("| Type | Description | Choices |\n")
-		o("| :--- | :---------- | :------ |\n")
+	o("| Type | Description | Choices |\n")
+	o("| :--- | :---------- | :------ |\n")
 
-		for _, t := range p.Types {
-			ft := t.Type
-			if t.Array {
-				ft = fmt.Sprintf("[]%s", ft)
-			} else if t.Map {
-				ft = fmt.Sprintf("map[string]%s", ft)
-			}
-
-			var choices []string
-			for _, c := range t.Choices {
-				choices = append(choices, fmt.Sprintf("`%v`", c))
-			}
-			var choicesVal string
-			if len(choices) > 0 {
-				choicesVal = strings.Join(choices, ", ")
-			} else {
-				choicesVal = "-"
-			}
-			var desc string
-			if t.Description != p.Description {
-				desc = strings.ReplaceAll(t.Description, "\n", " ")
-			}
-			o("| %s | %s | %s |\n", ft, desc, choicesVal)
+	for _, t := range p.Types {
+		ft := t.Type
+		if t.Array {
+			ft = fmt.Sprintf("[ %s ]", ft)
+		} else if t.Map {
+			ft = fmt.Sprintf("{ string: %s }", ft)
+		} else if t.ArrayOfMap {
+			ft = fmt.Sprintf("[ { string: %s } ]", ft)
+		} else if t.MapOfArray {
+			ft = fmt.Sprintf("{ string: [ %s ] }", ft)
+		} else if t.MapOfMap {
+			ft = fmt.Sprintf("{ string: { string: %s } }", ft)
+		} else if t.ArrayOfArray {
+			ft = fmt.Sprintf("[ [ %s ] ]", ft)
 		}
 
-		if len(p.Sections) > 0 {
-			o("| object | - | See [properties](#properties) | %s |\n")
+		var choices []string
+		for _, c := range t.Choices {
+			choices = append(choices, fmt.Sprintf("`%v`", c))
 		}
-	}
+		var choicesVal string
+		if len(choices) > 0 {
+			choicesVal = strings.Join(choices, ", ")
+		} else {
+			choicesVal = "-"
+		}
+		desc := "-"
+		if t.Description != p.Description {
+			desc = strings.ReplaceAll(t.Description, "\n", " ")
+		}
+		o("| %s | %s | %s |\n", ft, desc, choicesVal)
 
-	if len(p.Sections) > 0 {
-		o("## Properties\n\n")
+		if len(t.Sections) > 0 {
+			o("## Properties\n\n")
 
-		for _, s := range p.Sections {
-			if s.Name != "" {
-				o("### %s\n\n", s.Name)
-			}
-
-			if s.Description != "" {
-				o("%s\n\n", s.Description)
-			}
-
-			o("| Name | Description | Default | Reloadable | Version |\n")
-			o("| :--- | :---------- | :------ | :--------- | :------ |\n")
-
-			for _, x := range s.Properties {
-				var path string
-				if mc.RelativeLinks {
-					path = x.Name
-				} else {
-					path = filepath.Join(bpath, x.Name)
-				}
-				if !mc.TrimIndexFile {
-					path = filepath.Join(path, mc.IndexName)
+			for _, s := range t.Sections {
+				if s.Name != "" {
+					o("### %s\n\n", s.Name)
 				}
 
-				desc := strings.ReplaceAll(x.Description, "\n", " ")
-				def := "-"
-				if x.Default != nil {
-					def = fmt.Sprintf("`%v`", x.Default)
+				if s.Description != "" {
+					o("%s\n\n", s.Description)
 				}
-				o("| [%s](%s) | %s | `%v` | %s | %s |\n", x.Name, path, desc, def, yesno(x.Reloadable), x.Version)
+
+				o("| Name | Description | Default |\n")
+				o("| :--- | :---------- | :------ |\n")
+
+				for _, x := range s.Properties {
+					var path string
+					if mc.RelativeLinks {
+						path = x.Name
+					} else {
+						path = filepath.Join(bpath, x.Name)
+					}
+					if !mc.TrimIndexFile {
+						path = filepath.Join(path, mc.IndexName)
+					}
+
+					desc := strings.ReplaceAll(x.Description, "\n", " ")
+					def := "-"
+					if x.Default != nil {
+						def = fmt.Sprintf("`%v`", x.Default)
+					}
+					o("| [%s](%s) | %s | %s |\n", x.Name, path, desc, def)
+				}
 			}
 		}
 	}
@@ -186,6 +171,9 @@ func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hier
 		for _, e := range p.Examples {
 			if e.Label != "" {
 				o("### %s\n", e.Label)
+			}
+			if e.Description != "" {
+				o("%s\n", strings.TrimSpace(e.Description))
 			}
 			o("```\n")
 			o("%v\n", e.Value)
@@ -213,7 +201,12 @@ func GenerateMarkdown(config *Config, dir string, mc *MarkdownConfig) error {
 	prop := Property{
 		Name:        config.Name,
 		Description: config.Description,
-		Sections:    config.Sections,
+		Types: []*TypeOption{
+			{
+				Type:     "object",
+				Sections: config.Sections,
+			},
+		},
 	}
 
 	if mc.BasePath == "/" {
@@ -247,7 +240,10 @@ func generatePropMarkdown(prop *Property, buf *bytes.Buffer, dir string, mc *Mar
 	if len(nhier) > 0 {
 		base = filepath.Join(nhier[len(nhier)-1].Path, prop.Name)
 	}
-	nhier = append(nhier, &hierPath{Name: prop.Name, Path: base})
+	nhier = append(nhier, &hierPath{
+		Name: prop.Name,
+		Path: base,
+	})
 
 	upath := strings.TrimPrefix(base, "/")
 	if !mc.TrimIndexFile {
@@ -255,12 +251,17 @@ func generatePropMarkdown(prop *Property, buf *bytes.Buffer, dir string, mc *Mar
 	}
 	fmt.Printf("%s* [%s](%s)\n", strings.Repeat("  ", len(hier)), prop.Name, upath)
 
-	for _, s := range prop.Sections {
-		for _, p := range s.Properties {
-			// Property gets its own directory.
-			ndir := filepath.Join(dir, p.Name)
-			if err := generatePropMarkdown(p, buf, ndir, mc, nhier); err != nil {
-				return err
+	// Recurse into options having nested properties.
+	for _, o := range prop.Types {
+		if o.Type == "object" {
+			for _, s := range o.Sections {
+				for _, p := range s.Properties {
+					// Property gets its own directory.
+					ndir := filepath.Join(dir, p.Name)
+					if err := generatePropMarkdown(p, buf, ndir, mc, nhier); err != nil {
+						return err
+					}
+				}
 			}
 		}
 	}
