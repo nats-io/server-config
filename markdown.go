@@ -126,7 +126,7 @@ func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hier
 		if t.Description != p.Description {
 			desc = strings.ReplaceAll(t.Description, "\n", " ")
 		}
-		o("| %s | %s | %s |\n", ft, desc, choicesVal)
+		o("| `%s` | %s | %s |\n", ft, desc, choicesVal)
 
 		if len(t.Sections) > 0 {
 			o("## Properties\n\n")
@@ -140,8 +140,8 @@ func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hier
 					o("%s\n\n", s.Description)
 				}
 
-				o("| Name | Description | Default |\n")
-				o("| :--- | :---------- | :------ |\n")
+				o("| Name | Description | Type | Default |\n")
+				o("| :--- | :---------- | :--- | :------ |\n")
 
 				for _, x := range s.Properties {
 					var path string
@@ -159,7 +159,13 @@ func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hier
 					if x.Default != nil {
 						def = fmt.Sprintf("`%v`", x.Default)
 					}
-					o("| [%s](%s) | %s | %s |\n", x.Name, path, desc, def)
+					var typ string
+					if len(x.Types) == 1 {
+						typ = x.Types[0].Type
+					} else {
+						typ = "(multiple)"
+					}
+					o("| [`%s`](%s) | %s | `%s` | %s |\n", x.Name, path, desc, typ, def)
 				}
 			}
 		}
