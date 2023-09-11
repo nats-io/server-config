@@ -1,4 +1,17 @@
 types:
+  leafnode-tls:
+    type: tls
+    properties:
+      handshake_first:
+        type: boolean
+        default: false
+        description: |-
+          Force the leafnode connection to use a TLS-first handshake prior
+          to the remote sending the `INFO` protocol message.
+
+          Note, this option must be set to true on both the remote server
+          accepting the leafnode connections as well as the leafnode itself.
+
   leafnode:
     type: object
     disabled: true
@@ -29,7 +42,7 @@ types:
             type: listen
 
           tls:
-            type: tls
+            type: leafnode-tls
             description: |-
               TLS configuration for securing leaf node connections.
 
@@ -121,7 +134,7 @@ types:
           - creds
 
       tls:
-        type: tls
+        type: leafnode-tls
         description: |-
           TLS configuration for connecting/authenticating with
           the remote if mutual TLS is required.
