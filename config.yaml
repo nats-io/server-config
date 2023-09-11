@@ -31,7 +31,7 @@ description: |-
   * strings and numbers typically do the right thing
   * numbers support units such as, 1K for 1000, 1KB for 1024
 
-  String values that start with a digit _can_ create issues. To force such values as strings, quote them.
+  String values that start with a digit or a dot '.' can create issues. To force such values as strings, quote them.
 
   Bad Config:
 
@@ -228,7 +228,7 @@ sections:
         reloadable_note: |-
           Note, enabling or disabling a resolver requires full server restart.
         description: |-
-          Takes takes precedence over the value obtained from
+          Takes precedence over the value obtained from
           the `operator` if defined.
 
           If a string value is used, it must be `MEMORY` or `URL(<url>)`
