@@ -20,6 +20,7 @@ func run() error {
 	var (
 		configYaml    string
 		typesDir      string
+		genMarkdown   bool
 		dirName       string
 		basePath      string
 		useRelative   bool
@@ -30,6 +31,9 @@ func run() error {
 
 	flag.StringVar(&configYaml, "config", "config.yaml", "The root config YAML file.")
 	flag.StringVar(&typesDir, "types", "types", "The path to the types directory.")
+
+	// Markdown options
+	flag.BoolVar(&genMarkdown, "markdown", false, "Generate markdown files for the reference docs.")
 	flag.StringVar(&dirName, "dir", "ref", "The output directory for the reference docs.")
 	flag.StringVar(&basePath, "base", "", "Base URL path for the ref document paths.")
 	flag.BoolVar(&useRelative, "relative", false, "Use relative paths for the links.")
@@ -53,14 +57,19 @@ func run() error {
 		return err
 	}
 
-	mc := config.MarkdownConfig{
-		BasePath:      basePath,
-		RelativeLinks: useRelative,
-		IndexName:     indexFilename,
-		TrimIndexFile: trimIndex,
-		Breadcrumbs:   breadcrumbs,
-	}
+	switch {
+	case genMarkdown:
+		mc := config.MarkdownConfig{
+			BasePath:      basePath,
+			RelativeLinks: useRelative,
+			IndexName:     indexFilename,
+			TrimIndexFile: trimIndex,
+			Breadcrumbs:   breadcrumbs,
+		}
 
-	//config.GenerateConfig(os.Stdout, c)
-	return config.GenerateMarkdown(c, dirName, &mc)
+		return config.GenerateMarkdown(c, dirName, &mc)
+
+	default:
+		return fmt.Errorf("no output format specified")
+	}
 }
