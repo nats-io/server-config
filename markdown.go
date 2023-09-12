@@ -91,82 +91,48 @@ func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hier
 
 	o("\n")
 
-	o("## Values\n\n")
+	if len(p.Types) == 1 && p.Types[0].Type == "object" {
+		renderSections(w, mc, bpath, p.Types[0])
+	} else {
+		o("## Values\n\n")
 
-	o("| Type | Description | Choices |\n")
-	o("| :--- | :---------- | :------ |\n")
+		o("| Type | Description | Choices |\n")
+		o("| :--- | :---------- | :------ |\n")
 
-	for _, t := range p.Types {
-		ft := t.Type
-		if t.Array {
-			ft = fmt.Sprintf("[ %s ]", ft)
-		} else if t.Map {
-			ft = fmt.Sprintf("{ string: %s }", ft)
-		} else if t.ArrayOfMap {
-			ft = fmt.Sprintf("[ { string: %s } ]", ft)
-		} else if t.MapOfArray {
-			ft = fmt.Sprintf("{ string: [ %s ] }", ft)
-		} else if t.MapOfMap {
-			ft = fmt.Sprintf("{ string: { string: %s } }", ft)
-		} else if t.ArrayOfArray {
-			ft = fmt.Sprintf("[ [ %s ] ]", ft)
-		}
+		for _, t := range p.Types {
+			ft := t.Type
+			if t.Array {
+				ft = fmt.Sprintf("[ %s ]", ft)
+			} else if t.Map {
+				ft = fmt.Sprintf("{ string: %s }", ft)
+			} else if t.ArrayOfMap {
+				ft = fmt.Sprintf("[ { string: %s } ]", ft)
+			} else if t.MapOfArray {
+				ft = fmt.Sprintf("{ string: [ %s ] }", ft)
+			} else if t.MapOfMap {
+				ft = fmt.Sprintf("{ string: { string: %s } }", ft)
+			} else if t.ArrayOfArray {
+				ft = fmt.Sprintf("[ [ %s ] ]", ft)
+			}
 
-		var choices []string
-		for _, c := range t.Choices {
-			choices = append(choices, fmt.Sprintf("`%v`", c))
-		}
-		var choicesVal string
-		if len(choices) > 0 {
-			choicesVal = strings.Join(choices, ", ")
-		} else {
-			choicesVal = "-"
-		}
-		desc := "-"
-		if t.Description != p.Description {
-			desc = strings.ReplaceAll(t.Description, "\n", " ")
-		}
-		o("| `%s` | %s | %s |\n", ft, desc, choicesVal)
+			var choices []string
+			for _, c := range t.Choices {
+				choices = append(choices, fmt.Sprintf("`%v`", c))
+			}
+			var choicesVal string
+			if len(choices) > 0 {
+				choicesVal = strings.Join(choices, ", ")
+			} else {
+				choicesVal = "-"
+			}
+			desc := "-"
+			if t.Description != p.Description {
+				desc = strings.ReplaceAll(t.Description, "\n", " ")
+			}
+			o("| `%s` | %s | %s |\n", ft, desc, choicesVal)
 
-		if len(t.Sections) > 0 {
-			o("## Properties\n\n")
-
-			for _, s := range t.Sections {
-				if s.Name != "" {
-					o("### %s\n\n", s.Name)
-				}
-
-				if s.Description != "" {
-					o("%s\n\n", s.Description)
-				}
-
-				o("| Name | Description | Type | Default |\n")
-				o("| :--- | :---------- | :--- | :------ |\n")
-
-				for _, x := range s.Properties {
-					var path string
-					if mc.RelativeLinks {
-						path = x.Name
-					} else {
-						path = filepath.Join(bpath, x.Name)
-					}
-					if !mc.TrimIndexFile {
-						path = filepath.Join(path, mc.IndexName)
-					}
-
-					desc := strings.ReplaceAll(x.Description, "\n", " ")
-					def := "-"
-					if x.Default != nil {
-						def = fmt.Sprintf("`%v`", x.Default)
-					}
-					var typ string
-					if len(x.Types) == 1 {
-						typ = x.Types[0].Type
-					} else {
-						typ = "(multiple)"
-					}
-					o("| [`%s`](%s) | %s | `%s` | %s |\n", x.Name, path, desc, typ, def)
-				}
+			if len(t.Sections) > 0 {
+				renderSections(w, mc, bpath, t)
 			}
 		}
 	}
@@ -189,6 +155,52 @@ func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hier
 	}
 
 	return nil
+}
+
+func renderSections(w io.Writer, mc *MarkdownConfig, bpath string, t *TypeOption) {
+	o := func(str string, args ...any) {
+		fmt.Fprintf(w, str, args...)
+	}
+
+	o("## Properties\n\n")
+
+	for _, s := range t.Sections {
+		if s.Name != "" {
+			o("### %s\n\n", s.Name)
+		}
+
+		if s.Description != "" {
+			o("%s\n\n", s.Description)
+		}
+
+		o("| Name | Description | Type | Default |\n")
+		o("| :--- | :---------- | :--- | :------ |\n")
+
+		for _, x := range s.Properties {
+			var path string
+			if mc.RelativeLinks {
+				path = x.Name
+			} else {
+				path = filepath.Join(bpath, x.Name)
+			}
+			if !mc.TrimIndexFile {
+				path = filepath.Join(path, mc.IndexName)
+			}
+
+			desc := strings.ReplaceAll(x.Description, "\n", " ")
+			def := "-"
+			if x.Default != nil {
+				def = fmt.Sprintf("`%v`", x.Default)
+			}
+			var typ string
+			if len(x.Types) == 1 {
+				typ = x.Types[0].Type
+			} else {
+				typ = "(multiple)"
+			}
+			o("| [`%s`](%s) | %s | `%s` | %s |\n", x.Name, path, desc, typ, def)
+		}
+	}
 }
 
 type MarkdownConfig struct {
