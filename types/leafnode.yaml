@@ -69,6 +69,15 @@ types:
               The minimum server version required of the connecting
               leaf node. This must be at least version `2.8.0`.
 
+          compression:
+            types:
+              - compression-mode
+              - compression-map
+            description: |-
+              Defines the compression mode to use for an incoming leafnode connection.
+
+              If set to `on`, it will use the `s2_auto`.
+
       - name: Outgoing Connections
         description: |-
           A server that has been configured to *connect* to another
@@ -187,3 +196,12 @@ types:
         description: |-
         aliases:
           - js_cluster_migrate
+
+      compression:
+        types:
+          - compression-mode
+          - compression-map
+        description: |-
+          Defines the compression mode to use for a outgoing leafnode connection.
+
+          If set to `on`, it will use the `s2_auto`.

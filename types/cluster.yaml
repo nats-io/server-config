@@ -78,3 +78,70 @@ types:
           If the `tls` configuration map specifies `verify_and_map` only, provide the expected username. Here different certificates can be
           used, but they have to map to the same `username`. The authorization map also allows for timeout which is honored but users and
           token configuration are not supported and will prevent the server from starting. The `permissions` block is ignored.
+
+      pool_size:
+        type: integer
+        default: 3
+        description: |-
+          The size of the connection pool used to distribute load across non-pinned
+          accounts.
+
+      accounts:
+        type: array(string)
+        description: |-
+          A list of accounts to *pin*, each of which will have their own dedicated
+          route connection between servers. Note, this is not take up a connection
+          from the pool.
+
+      compression:
+        types:
+          - compression-mode
+          - compression-map
+        description: |-
+          Defines the type compression mode to use between routes.
+
+          If set to `on`, it will use the `s2_fast` compression.
+
+  compression-mode:
+    type: string
+    choices:
+      - disabled
+      - off
+      - enabled
+      - on
+      - accept
+      - s2_fast
+      - s2_better
+      - s2_best
+      - s2_auto
+    default: accept
+    description: |-
+      The compression mode dictates if and how compression is applied for a
+      connection.
+
+      The value of `accept` indicates it will inherit the mode of the server
+      it is connecting to. If both have `accept`, no compression will be used.
+
+      The `s2_fast`, `s2_better`, and `s2_best` modes indicate the level of S2
+      compression used.
+
+      `s2_auto` will dynamically change the compression level based on RTT thresholds.
+
+  compression-map:
+    type: object
+    properties:
+      mode:
+        type: compression-mode
+      rtt_thresholds:
+        type: array(duration)
+        default: [10ms, 50ms, 100ms]
+        description: |-
+          Applies only when the `s2_auto` mode is used and defines the round-trip time (RTT)
+          thresholds for compression level changes.
+
+          By default, no compression is used unless the RTT hits the first threshold
+          (e.g. 10ms), then `s2_fast`. The next threshold would switch to `s2_better`,
+          and then finally `s2_best` is the last threshold is reached.
+
+          Note, the compression level is dynamic so if the RTT decreases, the compression
+          level will decrease accordingly.
