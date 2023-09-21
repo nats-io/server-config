@@ -41,6 +41,50 @@ types:
             "orders.*.*": "orders.{{wildcard(1)}}.{{wildcard(2)}}.{{partition(5,1,2)}}"
           }
 
+      - label: Versioned mapping
+        description: |-
+          The publish subject is exposed without an explicit version, however
+          the mapping includes the version token. Since there is only a single
+          destination, the weight must be 100%.
+
+        value: |-
+          mappings {
+            myservice.requests: [
+              { destination: myservice.requests.v1, weight: 100% }
+            ]
+          }
+
+      - label: Traffic shaping
+        description: |-
+          Building on the previous example, when a new version of the service
+          is deployed, the mapping can be updated to send some percentage of
+          traffic to the new version for a canary rollout.
+
+        value: |-
+          mappings {
+            myservice.requests: [
+              { destination: myservice.requests.v1, weight: 90% }
+              { destination: myservice.requests.v2, weight: 10% }
+            ]
+          }
+
+      - label: Cluster-scoped mapping
+        description: |-
+          Multiple destinations can be specified that are cluster-scoped.
+          Given a server in cluster `west` it will apply the mapping(s)
+          having the same cluster, i.e. routing it to `myservice.requests.west`.
+          For servers in other clusters or not in a cluster, the non-scoped
+          mappings will be used, if any.
+
+        value: |-
+          mappings: {
+            myservice.requests: [
+               {destination: myservice.requests.west, weight: 100%, cluster: west}
+               {destination: myservice.requests.central, weight: 100%, cluster: central}
+               {destination: myservice.requests.east, weight: 100%, cluster: east}
+               {destination: myservice.requests.fallback, weight: 100%}
+            ]
+
   mapping:
     types:
       - string
@@ -62,9 +106,14 @@ types:
           - integer
         description: |-
           A number between 0 and 100 (inclusive). The string form allows for
-          a trailing `%` sign.
+          a trailing `%` sign. Note, if the `cluster` field is used, weights
+          across the destinations must add up to 100% on a per-cluster basis
+          unless artifical message loss is desired for testing.
 
       cluster:
         type: string
         description: |-
-          An explicit cluster where the weight applies to.
+          If specified, the destination is cluster-scoped. Messages received
+          by servers within the named cluster will only consider mappings with
+          the same cluster name. Otherwise, it will fallback to non-cluster scoped
+          mappings.

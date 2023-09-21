@@ -117,3 +117,28 @@ types:
           Max in-flight bytes for stream catch-up. This was introduced to
           control how much bandwidth should be dedicated during catch-up to
           guard against saturating and degrading performance of the network.
+
+      sync_interval:
+        type:
+          - duration
+          - sync-interval-choices
+        default: 2m
+        aliases:
+          - sync
+        description: |-
+          Defines the internal to force sync file-based stream and consumer data
+          to disk. The filestore relies on the operating system's filesystem buffers
+          to periodically sync to disk. However, the server will still periodically
+          force sync files based on this interval.
+
+          For use cases where unclean shutdowns are common, this can provide more
+          control over how frequently to force sync data when written.
+
+          If a value `always` is used, a explicit sync will occur on every write.
+          Do note that this will degrade the max throughput due to the additional
+          I/O calls.
+
+  sync-interval-choices:
+    type: string
+    choices:
+      - always
