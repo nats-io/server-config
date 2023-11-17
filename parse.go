@@ -15,14 +15,14 @@ var (
 )
 
 var (
-	primitiveTypes = map[string]struct{}{
-		"boolean":  {},
-		"float":    {},
-		"integer":  {},
-		"string":   {},
-		"duration": {},
-		"bytes":    {},
-		"object":   {},
+	primitiveTypes = map[string]string{
+		"boolean":  "",
+		"float":    "",
+		"integer":  "",
+		"string":   "",
+		"duration": "Duration as a string with units such as 100ms, 10s, 5m, or 2h.",
+		"storage":  "Size in bytes or string with a metric unit such as 100K, 50M, 3G, or 1T.",
+		"object":   "An object with a set of explicit properties that can be set.",
 	}
 )
 
@@ -60,50 +60,6 @@ type yamlType struct {
 	Properties     yaml.Node
 	Version        string
 	Choices        []string
-}
-
-func (p *yamlType) Combine(b *yamlType) *yamlType {
-	x := &(*p)
-
-	if x.Version != "" {
-		x.Version = b.Version
-	}
-	if x.Disabled {
-		x.Disabled = b.Disabled
-	}
-	if x.Description == "" {
-		x.Description = b.Description
-	}
-	if x.Default == nil {
-		x.Default = b.Default
-	}
-	if len(x.Aliases) == 0 {
-		x.Aliases = append(x.Aliases, b.Aliases...)
-	}
-	if x.Reloadable == nil {
-		x.Reloadable = b.Reloadable
-	}
-	if x.ReloadableNote == "" {
-		x.ReloadableNote = b.ReloadableNote
-	}
-	if x.Deprecation == "" {
-		x.Deprecation = b.Deprecation
-	}
-	if x.URL == "" {
-		x.URL = b.URL
-	}
-	if len(x.Examples) == 0 {
-		x.Examples = append(x.Examples, b.Examples...)
-	}
-	if len(x.Choices) == 0 {
-		x.Choices = append(x.Choices, b.Choices...)
-	}
-	// Deep copy sections?
-	if len(x.Sections) == 0 {
-		x.Sections = append(x.Sections, b.Sections...)
-	}
-
-	return x
 }
 
 // Parse takes the config and type definition paths and derives the config.
@@ -292,12 +248,15 @@ func parseProperty(ytypes map[string]*yamlType, yp *yamlType) (*Property, error)
 			o.Description = yp.Description
 		}
 		if o.Type == "object" {
+			sections, err := parseSections(ytypes, yp.Sections)
+			if err != nil {
+				return nil, err
+			}
+			// Combine sections and properties.
 			if len(o.Sections) == 0 {
-				sections, err := parseSections(ytypes, yp.Sections)
-				if err != nil {
-					return nil, err
-				}
 				o.Sections = sections
+			} else if len(sections) > 0 {
+				o.Sections[0].Properties = append(o.Sections[0].Properties, sections[0].Properties...)
 			}
 		}
 	}
@@ -341,11 +300,17 @@ func parseType(ytypes map[string]*yamlType, t string) ([]*TypeOption, error) {
 	}
 
 	// Primitive types.
-	if _, ok := primitiveTypes[t]; ok {
+	if d, ok := primitiveTypes[t]; ok {
+		var choices []string
+		if t == "boolean" {
+			choices = []string{"true", "false"}
+		}
 		return []*TypeOption{{
-			Type:  t,
-			Map:   isMap,
-			Array: isArray,
+			Description: d,
+			Type:        t,
+			Map:         isMap,
+			Array:       isArray,
+			Choices:     choices,
 		}}, nil
 	}
 
