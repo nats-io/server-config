@@ -21,6 +21,15 @@ func yesno(b bool) string {
 	return "No"
 }
 
+func hasNestedProps(p *Property) bool {
+	for _, o := range p.Types {
+		if o.Type == "object" {
+			return true
+		}
+	}
+	return false
+}
+
 func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hierPath) error {
 	o := func(str string, args ...any) {
 		fmt.Fprintf(w, str, args...)
@@ -68,16 +77,10 @@ func generateTemplate(w io.Writer, p *Property, mc *MarkdownConfig, hier []*hier
 		o("%s\n\n", p.Description)
 	}
 
-	if p.Default != nil {
-		o("- Default value: `%v`\n", p.Default)
-	} else {
-		o("- Default value: n/a\n")
-	}
 	if p.ReloadableNote != "" {
 		o("- Hot reloadable: %s. %s\n", yesno(p.Reloadable), p.ReloadableNote)
-	} else {
-		o("- Hot reloadable: %s\n", yesno(p.Reloadable))
 	}
+
 	if p.Version != "" {
 		o("- Version introduced: %s\n", p.Version)
 	}
@@ -173,8 +176,8 @@ func renderSections(w io.Writer, mc *MarkdownConfig, bpath string, t *TypeOption
 			o("%s\n\n", s.Description)
 		}
 
-		o("| Name | Description | Type | Default |\n")
-		o("| :--- | :---------- | :--- | :------ |\n")
+		o("| Name | Description | Type | Default | Reloadable |\n")
+		o("| :--- | :---------- | :--- | :------ | :--------- |\n")
 
 		for _, x := range s.Properties {
 			var path string
@@ -198,7 +201,14 @@ func renderSections(w io.Writer, mc *MarkdownConfig, bpath string, t *TypeOption
 			} else {
 				typ = "(multiple)"
 			}
-			o("| [`%s`](%s) | %s | `%s` | %s |\n", x.Name, path, desc, typ, def)
+			rel := x.Reloadable
+
+			// Render link to sub-page.
+			if hasNestedProps(x) {
+				o("| [`%s`](%s) | %s | `%s` | %s | %s |\n", x.Name, path, desc, typ, def, yesno(rel))
+			} else {
+				o("| `%s` | %s | `%s` | %s | %s |\n", x.Name, desc, typ, def, yesno(rel))
+			}
 		}
 	}
 }
@@ -267,6 +277,11 @@ func generatePropMarkdown(prop *Property, buf *bytes.Buffer, dir string, mc *Mar
 	if !mc.TrimIndexFile {
 		upath = filepath.Join(upath, mc.IndexName)
 	}
+
+	if !hasNestedProps(prop) {
+		return nil
+	}
+
 	fmt.Printf("%s* [%s](%s)\n", strings.Repeat("  ", len(hier)), prop.Name, upath)
 
 	// Recurse into options having nested properties.
