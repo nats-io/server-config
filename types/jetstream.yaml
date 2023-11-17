@@ -119,7 +119,7 @@ types:
           guard against saturating and degrading performance of the network.
 
       sync_interval:
-        type:
+        types:
           - duration
           - sync-interval-choices
         default: 2m
